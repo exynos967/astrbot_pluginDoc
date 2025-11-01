@@ -178,6 +178,12 @@ CAUTION
 
 代码处理函数可能会忽略插件类的定义，所有的处理函数都需写在插件类中。
 
+### 插件展示名
+
+> v4.5.0 及以上版本支持。低版本不会报错，但不会生效。
+
+你可以修改(或添加) `metadata.yaml` 文件中的 `display_name` 字段，作为插件在插件市场等场景中的展示名，以方便用户阅读。
+
 ### 消息事件的监听 
 
 事件监听器可以收到平台下发的消息内容，可以实现指令、指令组、事件监听等功能。
@@ -744,7 +750,7 @@ json
 
 ![editor_mode_fullscreen](https://docs.astrbot.app/assets/image-7.wpQ2mMo1.png)
 
-**\_special** 字段仅 v4.0.0 之后可用。目前支持填写 `select_provider`, `select_provider_tts`, `select_provider_stt`, `select_persona`, `select_knowledgebase`，用于让用户快速选择用户在 WebUI 上已经配置好的模型提供商、人设、知识库等数据。结果均为字符串。以 select\_provider 为例，将呈现以下效果:
+**_special** 字段仅 v4.0.0 之后可用。目前支持填写 `select_provider`, `select_provider_tts`, `select_provider_stt`, `select_persona`，用于让用户快速选择用户在 WebUI 上已经配置好的模型提供商、人设等数据。结果均为字符串。以 select_provider 为例，将呈现以下效果:
 
 ![](https://docs.astrbot.app/assets/image.CYl9eIX0.png)
 
@@ -1101,9 +1107,10 @@ class LLMResponse:
 
 #### 获取其他类型的提供商 
 
+> 嵌入、重排序 没有 “当前使用”。这两个提供商主要用于知识库。
+
 - 获取当前使用的语音识别提供商(STTProvider): `self.context.get_using_stt_provider(umo=event.unified_msg_origin)`。
 - 获取当前使用的语音合成提供商(TTSProvider): `self.context.get_using_tts_provider(umo=event.unified_msg_origin)`。
-- 获取当前使用的嵌入提供商(EmbeddingProvider): `self.context.get_using_embedding_provider(umo=event.unified_msg_origin)`。
 - 获取所有语音识别提供商: `self.context.get_all_stt_providers()`。
 - 获取所有语音合成提供商: `self.context.get_all_tts_providers()`。
 - 获取所有嵌入提供商: `self.context.get_all_embedding_providers()`。
@@ -1161,42 +1168,59 @@ class STTProvider(AbstractProvider):
 
 函数工具给了大语言模型调用外部工具的能力。在 AstrBot 中，函数工具有多种定义方式。
 
-##### 以类的形式 
+##### 以类的形式（推荐）
 
-这是最灵活的定义形式。
+推荐在插件目录下新建 `tools` 文件夹，然后在其中编写工具类：
+
+`tools/search.py`:
 
 py
 
 ```
-from astrbot.api import ToolSet, FunctionTool
-from dataclasses import dataclass, field
+from astrbot.api import FunctionTool
 from astrbot.api.event import AstrMessageEvent
+from dataclasses import dataclass, field
 
 @dataclass
-class SearchTool(FunctionTool):
-    name: str = "get_current_weather" # tool 的名称
-    description: str = "Get the current weather in a given location." # tool 的描述
-    parameters: dict = field(default_factory=lambda: {
-        "type": "object",
-        "properties": {
-            "location": {
-                "type": "string",
-                "description": "The city and state, e.g. San Francisco, CA"
-            },
-            "unit": {
-                "type": "string",
-                "enum": ["celsius", "fahrenheit"]
-            }
-        },
-        "required": ["location"]
-    }) # tool 的参数定义
+class HelloWorldTool(FunctionTool):
+    name: str = "hello_world" # 工具名称
+    description: str = "Say hello to the world." # 工具描述
+    parameters: dict = field(
+        default_factory=lambda: {
+            "type": "object",
+            "properties": {
+                "greeting": {
+                    "type": "string",
+                    "description": "The greeting message.",
+                },
+            "required": ["greeting"],
+        }
+    ) # 工具参数定义，见 OpenAI 官网或 https://json-schema.org/understanding-json-schema/
 
-    async def run(self, event: AstrMessageEvent, location: str, unit: str):
-        # Your implementation here
-        ...
+    async def run(
+        self,
+        event: AstrMessageEvent, # 必须包含此 event 参数在前面，用于获取上下文
+        greeting: str, # 工具参数，必须与 parameters 中定义的参数名一致
+    ):
+        return f"{greeting}, World!" # 也支持 mcp.types.CallToolResult 类型
+```
+
+要将上述工具注册到 AstrBot，可以在插件主文件的 `__init__.py` 中添加以下代码：
+
+```py
+from .tools.search import SearchTool
 
 tool = SearchTool()
 tool_set = ToolSet([tool])
+class MyPlugin(Star):
+    def __init__(self, context: Context):
+        super().__init__(context)
+        # >= v4.5.1 使用：
+        self.context.add_llm_tools(HelloWorldTool(), SecondTool(), ...)
+
+        # < v4.5.1 之前使用：
+        tool_mgr = self.context.provider_manager.llm_tools
+        tool_mgr.func_list.append(HelloWorldTool())
 ```
 
 ##### 以装饰器的形式 
