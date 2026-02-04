@@ -43,7 +43,7 @@ AstrBot 提供了”强大“的配置解析和可视化功能。能够让用户
 }
 ```
 
-- `type`: **此项必填**。配置的类型。支持 `string`, `text`, `int`, `float`, `bool`, `object`, `list`。当类型为 `text` 时，将会可视化为一个更大的可拖拽宽高的 textarea 组件，以适应大文本。
+- `type`: **此项必填**。配置的类型。支持 `string`, `text`, `int`, `float`, `bool`, `object`, `list`, `dict`, `template_list`。当类型为 `text` 时，将会可视化为一个更大的可拖拽宽高的 textarea 组件，以适应大文本。
 - `description`: 可选。配置的描述。建议一句话描述配置的行为。
 - `hint`: 可选。配置的提示信息，表现在上图中右边的问号按钮，当鼠标悬浮在问号按钮上时显示。
 - `obvious_hint`: 可选。配置的 hint 是否醒目显示。如上图的 `token`。
@@ -64,7 +64,129 @@ AstrBot 提供了”强大“的配置解析和可视化功能。能够让用户
 
 **_special** 字段仅 v4.0.0 之后可用。目前支持填写 `select_provider`, `select_provider_tts`, `select_provider_stt`, `select_persona`，用于让用户快速选择用户在 WebUI 上已经配置好的模型提供商、人设等数据。结果均为字符串。以 select_provider 为例，将呈现以下效果:
 
-![image](/source/images/plugin/image.png)
+![image](/source/images/plugin/image-select-provider.png)
+
+### file 类型的 schema
+
+在 v4.13.0 之后引入，允许插件定义文件上传配置项，引导用户上传插件所需的文件。
+
+```json
+{
+  "demo_files": {
+    "type": "file",
+    "description": "Uploaded files for demo",
+    "default": [], // 支持多文件上传，默认值为一个空列表
+    "file_types": ["pdf", "docx"] // 允许上传的文件类型列表
+  }
+}
+```
+
+### dict 类型的 schema
+
+用于可视化编辑一个 Python 的 dict 类型的配置。如 AstrBot Core 中的自定义请求体参数配置项：
+
+```py
+"custom_extra_body": {
+  "description": "自定义请求体参数",
+  "type": "dict",
+  "items": {},
+  "hint": "用于在请求时添加额外的参数，如 temperature、top_p、max_tokens 等。",
+  "template_schema": { # 可选填写 template schema，当设置之后，用户可以透过 WebUI 快速编辑。
+      "temperature": {
+          "name": "Temperature",
+          "description": "温度参数",
+          "hint": "控制输出的随机性，范围通常为 0-2。值越高越随机。",
+          "type": "float",
+          "default": 0.6,
+          "slider": {"min": 0, "max": 2, "step": 0.1},
+      },
+      "top_p": {
+          "name": "Top-p",
+          "description": "Top-p 采样",
+          "hint": "核采样参数，范围通常为 0-1。控制模型考虑的概率质量。",
+          "type": "float",
+          "default": 1.0,
+          "slider": {"min": 0, "max": 1, "step": 0.01},
+      },
+      "max_tokens": {
+          "name": "Max Tokens",
+          "description": "最大令牌数",
+          "hint": "生成的最大令牌数。",
+          "type": "int",
+          "default": 8192,
+      },
+  },
+}
+```
+
+### template_list 类型的 schema
+
+> [!NOTE]
+> v4.10.4 引入。更多信息请查看：[#4208](https://github.com/AstrBotDevs/AstrBot/pull/4208)
+
+插件开发者可以在_conf_schema中按照以下格式添加模板配置项（有点类似于原有的嵌套配置）
+
+```json
+ "field_id": {
+  "type": "template_list",
+  "description": "Template List Field",
+  "templates": {
+    "template_1": {
+        "name": "Template One",
+        "hint":"hint",
+        "items": {
+          "attr_a": {
+            "description": "Attribute A",
+            "type": "int",
+            "default": 10
+          },
+          "attr_b": {
+            "description": "Attribute B",
+            "hint": "This is a boolean attribute",
+            "type": "bool",
+            "default": true
+          }
+        }
+      },
+    "template_2": {
+      "name": "Template Two",
+      "hint":"hint",
+      "items": {
+        "attr_c": {
+          "description": "Attribute A",
+          "type": "int",
+          "default": 10
+        },
+        "attr_d": {
+          "description": "Attribute B",
+          "hint": "This is a boolean attribute",
+          "type": "bool",
+          "default": true
+        }
+      }
+    }
+  }
+}
+```
+
+保存后的 config 为
+
+```json
+"field_id": [
+    {
+        "__template_key": "template_1",
+        "attr_a": 10,
+        "attr_b": true
+    },
+    {
+        "__template_key": "template_2",
+        "attr_c": 10,
+        "attr_d": true
+    }
+]
+```
+
+<img width="1000" alt="image" src="https://github.com/user-attachments/assets/74876d30-11a4-491b-a7a0-8ebe8d603782" />
 
 ## 在插件中使用配置
 
@@ -86,4 +208,4 @@ class ConfigPlugin(Star):
 
 ## 配置更新
 
-如果您在发布不同版本时更新了 Schema，请注意，AstrBot 会递归检查 Schema 的配置项，如果发现配置文件中缺失了某个配置项，会自动添加默认值。但是 AstrBot 不会删除配置文件中**多余的**配置项，即使这个配置项在新的 Schema 中不存在（您在新的 Schema 中删除了这个配置项）。
+您在发布不同版本更新 Schema 时，AstrBot 会递归检查 Schema 的配置项，自动为缺失的配置项添加默认值、移除不存在的配置项。
