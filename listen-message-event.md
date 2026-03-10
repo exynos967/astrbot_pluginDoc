@@ -13,8 +13,6 @@ from astrbot.api.event import filter, AstrMessageEvent
 
 AstrBot 接收消息平台下发的消息，并将其封装为 `AstrMessageEvent` 对象，传递给插件进行处理。
 
-![message-event](message-event.svg)
-
 ### 消息事件
 
 `AstrMessageEvent` 是 AstrBot 的消息事件对象，其中存储了消息发送者、消息内容等信息。
@@ -42,8 +40,6 @@ class AstrBotMessage:
 
 ### 消息链
 
-![message-chain](message-chain.svg)
-
 `消息链`描述一个消息的结构，是一个有序列表，列表中每一个元素称为`消息段`。
 
 常见的消息段类型有：
@@ -68,13 +64,10 @@ class AstrBotMessage:
 
 ## 指令
 
-![message-event-simple-command](message-event-simple-command.svg)
-
 ```python
 from astrbot.api.event import filter, AstrMessageEvent
-from astrbot.api.star import Context, Star, register
+from astrbot.api.star import Context, Star
 
-@register("helloworld", "Soulter", "一个简单的 Hello World 插件", "1.0.0")
 class MyPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -91,8 +84,6 @@ class MyPlugin(Star):
 > 指令不能带空格，否则 AstrBot 会将其解析到第二个参数。可以使用下面的指令组功能，或者也使用监听器自己解析消息内容。
 
 ## 带参指令
-
-![command-with-param](command-with-param.svg)
 
 AstrBot 会自动帮你解析指令的参数。
 
@@ -126,12 +117,6 @@ async def sub(self, event: AstrMessageEvent, a: int, b: int):
 指令组函数内不需要实现任何函数，请直接 `pass` 或者添加函数内注释。指令组的子指令使用 `指令组名.command` 来注册。
 
 当用户没有输入子指令时，会报错并，并渲染出该指令组的树形结构。
-
-![image](/source/images/plugin/image-1.png)
-
-![image](/source/images/plugin/898a169ae7ed0478f41c0a7d14cb4d64.png)
-
-![image](/source/images/plugin/image-2.png)
 
 理论上，指令组可以无限嵌套！
 
